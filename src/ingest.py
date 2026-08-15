@@ -8,6 +8,7 @@ and message loop.
 
 import asyncio
 import json
+import redis.asyncio as redis
 
 import websockets
 
@@ -17,9 +18,11 @@ COINBASE_WS_URL = "wss://ws-feed.exchange.coinbase.com"
 # every subscribed product over the same socket, distinguished by the
 # "product_id" field in each message.
 PRODUCT_IDS = ["BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "AVAX-USD"]
-
+STREAM_NAME = "market:ticks"
 
 async def stream_ticks() -> None:
+    r = redis.Redis(host="localhost", port=6379)
+
     while True:
         try:
             async with websockets.connect(COINBASE_WS_URL) as ws:
@@ -40,7 +43,11 @@ async def stream_ticks() -> None:
                         continue
 
                     print(f"{data['product_id']:<10} {data['price']:>12} @ {data['time']}")
-                
+                    await r.xadd(STREAM_NAME, {
+                        "product_id": data["product_id"],
+                        "price": data["price"],
+                        "time": data["time"],
+                    })
         except websockets.exceptions.ConnectionClosed:
             print("Connection dropped :(")
             await asyncio.sleep(3)
