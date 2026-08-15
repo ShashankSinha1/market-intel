@@ -20,34 +20,35 @@ PRODUCT_IDS = ["BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "AVAX-USD"]
 
 
 async def stream_ticks() -> None:
-    async with websockets.connect(COINBASE_WS_URL) as ws:
-        subscribe_message = {
-            "type": "subscribe",
-            "product_ids": PRODUCT_IDS,
-            "channels": ["ticker"],
-        }
-        await ws.send(json.dumps(subscribe_message))
-
-        async for raw_message in ws:
-            data = json.loads(raw_message)
-
-            # Coinbase sends one "subscriptions" ack first, then a stream
-            # of "ticker" messages after that — skip anything that isn't
-            # a tick.
-            if data.get("type") != "ticker":
-                continue
-
-            print(f"{data['product_id']:<10} {data['price']:>12} @ {data['time']}")
-
-async def heartbeat():
     while True:
-        print("heartbeat")
-        await asyncio.sleep(5)
+        try:
+            async with websockets.connect(COINBASE_WS_URL) as ws:
+                subscribe_message = {
+                    "type": "subscribe",
+                    "product_ids": PRODUCT_IDS,
+                    "channels": ["ticker"],
+                }
+                await ws.send(json.dumps(subscribe_message))
 
-async def main():
-    await asyncio.gather(
-        stream_ticks(),
-        heartbeat()
-    )
+                async for raw_message in ws:
+                    data = json.loads(raw_message)
 
-asyncio.run(main())
+                    # Coinbase sends one "subscriptions" ack first, then a stream
+                    # of "ticker" messages after that — skip anything that isn't
+                    # a tick.
+                    if data.get("type") != "ticker":
+                        continue
+
+                    print(f"{data['product_id']:<10} {data['price']:>12} @ {data['time']}")
+                
+        except websockets.exceptions.ConnectionClosed:
+            print("Connection dropped :(")
+            await asyncio.sleep(3)
+
+        except OSError:
+            print("Couldn't connect")
+            await asyncio.sleep(3)
+
+
+if __name__ == "__main__":
+    asyncio.run(stream_ticks())
