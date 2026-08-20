@@ -1,15 +1,17 @@
-import pymongo.errors
-from redis import ResponseError
-import redis.asyncio as redis
 import asyncio
-from motor.motor_asyncio import AsyncIOMotorClient
-from datetime import datetime, timedelta
 from collections import deque
+from datetime import datetime, timedelta
+
+import pymongo.errors
+import redis.asyncio as redis
+from motor.motor_asyncio import AsyncIOMotorClient
+from redis import ResponseError
 
 STREAM_NAME = "market:ticks"
-GROUP_NAME= "processors"
-CONSUMER_NAME= "processor-1"
+GROUP_NAME = "processors"
+CONSUMER_NAME = "processor-1"
 WINDOW = timedelta(seconds=30)
+
 
 async def process_group() -> None:
     r = redis.Redis(host="localhost", port=6379, decode_responses=True)
@@ -18,7 +20,7 @@ async def process_group() -> None:
     collection = db["ticks"]
     last_prices = {}
     price_history = {}
-    
+
     try:
         await r.xgroup_create(STREAM_NAME, GROUP_NAME, id="$", mkstream=True)
     except ResponseError as e:
@@ -27,7 +29,14 @@ async def process_group() -> None:
         print("Group already exists")
 
     try:
-        await db.create_collection("ticks", timeseries={"timeField": "time", "metaField": "product_id", "granularity": "seconds"})
+        await db.create_collection(
+            "ticks",
+            timeseries={
+                "timeField": "time",
+                "metaField": "product_id",
+                "granularity": "seconds",
+            },
+        )
     except pymongo.errors.CollectionInvalid as e:
         print(f"Collection already exists: {e}")
 
@@ -36,8 +45,8 @@ async def process_group() -> None:
             GROUP_NAME, CONSUMER_NAME, {STREAM_NAME: ">"}, count=10, block=5000
         )
 
-        for stream_name, messages in response:
-            for message_id, fields in messages: # type: ignore
+        for _, messages in response:
+            for message_id, fields in messages:  # type: ignore
                 print(fields)
                 fields["time"] = datetime.fromisoformat(fields["time"])
                 current_price = float(fields["price"])
@@ -46,7 +55,7 @@ async def process_group() -> None:
 
                 product_deque.append((fields["time"], current_price))
 
-                while fields["time"] - WINDOW > product_deque[0][0]:
+                while product_deque and fields["time"] - WINDOW > product_deque[0][0]:
                     product_deque.popleft()
 
                 prices_sum = sum(price for _, price in product_deque)
@@ -54,7 +63,7 @@ async def process_group() -> None:
 
                 if previous_price is not None:
                     delta = current_price - previous_price
-                else: 
+                else:
                     delta = 0
 
                 fields["delta"] = delta
@@ -67,6 +76,7 @@ async def process_group() -> None:
 
                 except pymongo.errors.PyMongoError as e:
                     print(f"Error: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(process_group())
