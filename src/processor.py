@@ -47,7 +47,6 @@ async def process_group() -> None:
 
         for _, messages in response:
             for message_id, fields in messages:  # type: ignore
-                print(fields)
                 fields["time"] = datetime.fromisoformat(fields["time"])
                 current_price = float(fields["price"])
                 previous_price = last_prices.get(fields["product_id"])
@@ -69,6 +68,7 @@ async def process_group() -> None:
                 fields["delta"] = delta
                 last_prices[fields["product_id"]] = current_price
                 fields["average"] = avg
+                print(fields)
 
                 try:
                     await collection.insert_one(fields)
