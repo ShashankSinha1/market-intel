@@ -14,6 +14,7 @@ async def process_group() -> None:
     client = AsyncIOMotorClient("mongodb://localhost:27017")
     db = client["market_intel"]
     collection = db["ticks"]
+    last_prices = {}
     
     try:
         await r.xgroup_create(STREAM_NAME, GROUP_NAME, id="$", mkstream=True)
@@ -36,6 +37,16 @@ async def process_group() -> None:
             for message_id, fields in messages: # type: ignore
                 print(fields)
                 fields["time"] = datetime.fromisoformat(fields["time"])
+                current_price = float(fields["price"])
+                previous_price = last_prices.get(fields["product_id"])
+
+                if previous_price is not None:
+                    delta = current_price - previous_price
+                else: 
+                    delta = 0
+
+                fields["delta"] = delta
+                last_prices[fields["product_id"]] = current_price
 
                 try:
                     await collection.insert_one(fields)
