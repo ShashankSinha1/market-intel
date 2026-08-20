@@ -3,11 +3,13 @@ from redis import ResponseError
 import redis.asyncio as redis
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
-from datetime import datetime
+from datetime import datetime, timedelta
+from collections import deque
 
 STREAM_NAME = "market:ticks"
 GROUP_NAME= "processors"
 CONSUMER_NAME= "processor-1"
+WINDOW = timedelta(seconds=30)
 
 async def process_group() -> None:
     r = redis.Redis(host="localhost", port=6379, decode_responses=True)
@@ -15,6 +17,7 @@ async def process_group() -> None:
     db = client["market_intel"]
     collection = db["ticks"]
     last_prices = {}
+    price_history = {}
     
     try:
         await r.xgroup_create(STREAM_NAME, GROUP_NAME, id="$", mkstream=True)
@@ -39,6 +42,15 @@ async def process_group() -> None:
                 fields["time"] = datetime.fromisoformat(fields["time"])
                 current_price = float(fields["price"])
                 previous_price = last_prices.get(fields["product_id"])
+                product_deque = price_history.setdefault(fields["product_id"], deque())
+
+                product_deque.append((fields["time"], current_price))
+
+                while fields["time"] - WINDOW > product_deque[0][0]:
+                    product_deque.popleft()
+
+                prices_sum = sum(price for _, price in product_deque)
+                avg = prices_sum / len(product_deque)
 
                 if previous_price is not None:
                     delta = current_price - previous_price
@@ -47,6 +59,7 @@ async def process_group() -> None:
 
                 fields["delta"] = delta
                 last_prices[fields["product_id"]] = current_price
+                fields["average"] = avg
 
                 try:
                     await collection.insert_one(fields)
