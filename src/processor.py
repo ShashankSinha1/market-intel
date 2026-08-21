@@ -13,6 +13,7 @@ STREAM_NAME = "market:ticks"
 GROUP_NAME = "processors"
 CONSUMER_NAME = "processor-1"
 CHANNEL_NAME = "market:signals"
+CACHE_KEY = "market:latest"
 WINDOW = timedelta(seconds=30)
 
 
@@ -81,8 +82,10 @@ async def process_group() -> None:
                 print(fields)
 
                 try:
+                    payload = json.dumps(json_payload)
                     await collection.insert_one(fields)
-                    await r.publish(CHANNEL_NAME, json.dumps(json_payload))
+                    await r.publish(CHANNEL_NAME, payload)
+                    await r.hset(CACHE_KEY, fields["product_id"], payload)
                     await r.xack(STREAM_NAME, GROUP_NAME, message_id)
 
                 except (pymongo.errors.PyMongoError, RedisError) as e:
