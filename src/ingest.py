@@ -8,11 +8,12 @@ and message loop.
 
 import asyncio
 import json
-import redis.asyncio as redis
+import redis.asyncio as aioredis
 
 import websockets
 
 COINBASE_WS_URL = "wss://ws-feed.exchange.coinbase.com"
+REDIS_URL = "redis://localhost:6379"
 
 # One connection handles all of these — Coinbase multiplexes ticks for
 # every subscribed product over the same socket, distinguished by the
@@ -21,7 +22,7 @@ PRODUCT_IDS = ["BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "AVAX-USD"]
 STREAM_NAME = "market:ticks"
 
 async def stream_ticks() -> None:
-    r = redis.Redis(host="localhost", port=6379)
+    r = aioredis.from_url(REDIS_URL, decode_responses=True)
 
     while True:
         try:
