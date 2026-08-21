@@ -1,4 +1,5 @@
 import asyncio
+import json
 from collections import deque
 from datetime import datetime, timedelta
 
@@ -6,10 +7,12 @@ import pymongo.errors
 import redis.asyncio as redis
 from motor.motor_asyncio import AsyncIOMotorClient
 from redis import ResponseError
+from redis.exceptions import RedisError
 
 STREAM_NAME = "market:ticks"
 GROUP_NAME = "processors"
 CONSUMER_NAME = "processor-1"
+CHANNEL_NAME = "market:signals"
 WINDOW = timedelta(seconds=30)
 
 
@@ -68,13 +71,21 @@ async def process_group() -> None:
                 fields["delta"] = delta
                 last_prices[fields["product_id"]] = current_price
                 fields["average"] = avg
+                json_payload = {
+                    "product_id": fields["product_id"],
+                    "price": fields["price"],
+                    "time": fields["time"].isoformat(),
+                    "delta": delta,
+                    "average": avg,
+                }
                 print(fields)
 
                 try:
                     await collection.insert_one(fields)
+                    await r.publish(CHANNEL_NAME, json.dumps(json_payload))
                     await r.xack(STREAM_NAME, GROUP_NAME, message_id)
 
-                except pymongo.errors.PyMongoError as e:
+                except (pymongo.errors.PyMongoError, RedisError) as e:
                     print(f"Error: {e}")
 
 
