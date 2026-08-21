@@ -4,11 +4,12 @@ from collections import deque
 from datetime import datetime, timedelta
 
 import pymongo.errors
-import redis.asyncio as redis
+import redis.asyncio as aioredis
 from motor.motor_asyncio import AsyncIOMotorClient
 from redis import ResponseError
 from redis.exceptions import RedisError
 
+REDIS_URL = "redis://localhost:6379"
 STREAM_NAME = "market:ticks"
 GROUP_NAME = "processors"
 CONSUMER_NAME = "processor-1"
@@ -18,7 +19,7 @@ WINDOW = timedelta(seconds=30)
 
 
 async def process_group() -> None:
-    r = redis.Redis(host="localhost", port=6379, decode_responses=True)
+    r = aioredis.from_url(REDIS_URL, decode_responses=True)
     client = AsyncIOMotorClient("mongodb://localhost:27017")
     db = client["market_intel"]
     collection = db["ticks"]
@@ -45,9 +46,15 @@ async def process_group() -> None:
         print(f"Collection already exists: {e}")
 
     while True:
-        response = await r.xreadgroup(
-            GROUP_NAME, CONSUMER_NAME, {STREAM_NAME: ">"}, count=10, block=5000
-        )
+        try:
+            response = await r.xreadgroup(
+                GROUP_NAME, CONSUMER_NAME, {STREAM_NAME: ">"}, count=10, block=5000
+            )
+
+        except RedisError as e:
+            print(f"{e}")
+            await asyncio.sleep(3)
+            continue
 
         for _, messages in response:
             for message_id, fields in messages:  # type: ignore
@@ -66,6 +73,7 @@ async def process_group() -> None:
 
                 if previous_price is not None:
                     delta = current_price - previous_price
+                    delta = round(delta, 6)
                 else:
                     delta = 0
 
