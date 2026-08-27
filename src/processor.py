@@ -49,6 +49,7 @@ async def process_group() -> None:
     async def process_message(message_id, fields):
         fields["time"] = datetime.fromisoformat(fields["time"])
         current_price = float(fields["price"])
+        fields["price"] = current_price
         previous_price = last_prices.get(fields["product_id"])
         product_deque = price_history.setdefault(fields["product_id"], deque())
 
@@ -59,6 +60,7 @@ async def process_group() -> None:
 
         prices_sum = sum(price for _, price in product_deque)
         avg = prices_sum / len(product_deque)
+        avg = round(avg, 6)
 
         if previous_price is not None:
             delta = current_price - previous_price
@@ -71,7 +73,7 @@ async def process_group() -> None:
         fields["average"] = avg
         json_payload = {
             "product_id": fields["product_id"],
-            "price": fields["price"],
+            "price": current_price,
             "time": fields["time"].isoformat(),
             "delta": delta,
             "average": avg,
@@ -93,7 +95,7 @@ async def process_group() -> None:
             _, claimed_messages, _ = await r.xautoclaim(
                 STREAM_NAME, GROUP_NAME, CONSUMER_NAME, min_idle_time=30000
             )
-            
+
             for message_id, fields in claimed_messages:
                 await process_message(message_id, fields)
 

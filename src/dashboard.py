@@ -1,4 +1,5 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 import redis.asyncio as aioredis
 import json
 
@@ -7,6 +8,7 @@ CACHE_KEY = "market:latest"
 CHANNEL_NAME = "market:signals"
 
 app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"], allow_methods=["*"], allow_headers=["*"])
 r = aioredis.from_url(REDIS_URL, decode_responses=True)
 
 @app.get("/api/signals")
