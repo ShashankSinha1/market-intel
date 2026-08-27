@@ -14,6 +14,13 @@ services:
       - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./src
+          target: /app/src
+        - action: rebuild
+          path: ./requirements.txt
   processor:
     build: .
     command: ["python", "src/processor.py"]
@@ -23,11 +30,25 @@ services:
     depends_on:
       - redis
       - mongo
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./src
+          target: /app/src
+        - action: rebuild
+          path: ./requirements.txt
   dashboard:
     build: .
-    command: ["uvicorn", "src.dashboard:app", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["uvicorn", "src.dashboard:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     ports: ["8000:8000"]
     environment:
       - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
+    develop:
+      watch:
+        - action: sync
+          path: ./src
+          target: /app/src
+        - action: rebuild
+          path: ./requirements.txt
