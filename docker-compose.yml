@@ -7,3 +7,27 @@ services:
     image: mongo:7
     ports:
       - "27017:27017"
+  ingest:
+    build: .
+    command: ["python", "src/ingest.py"]
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+  processor:
+    build: .
+    command: ["python", "src/processor.py"]
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - MONGO_URL=mongodb://mongo:27017
+    depends_on:
+      - redis
+      - mongo
+  dashboard:
+    build: .
+    command: ["uvicorn", "src.dashboard:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["8000:8000"]
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis

@@ -9,7 +9,10 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from redis import ResponseError
 from redis.exceptions import RedisError
 
-REDIS_URL = "redis://localhost:6379"
+import os
+
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
+MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 STREAM_NAME = "market:ticks"
 GROUP_NAME = "processors"
 CONSUMER_NAME = "processor-1"
@@ -20,7 +23,7 @@ WINDOW = timedelta(seconds=30)
 
 async def process_group() -> None:
     r = aioredis.from_url(REDIS_URL, decode_responses=True)
-    client = AsyncIOMotorClient("mongodb://localhost:27017")
+    client = AsyncIOMotorClient(MONGO_URL)
     db = client["market_intel"]
     collection = db["ticks"]
     last_prices = {}

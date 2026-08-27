@@ -9,11 +9,11 @@ and message loop.
 import asyncio
 import json
 import redis.asyncio as aioredis
-
+import os
 import websockets
 
 COINBASE_WS_URL = "wss://ws-feed.exchange.coinbase.com"
-REDIS_URL = "redis://localhost:6379"
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 
 # One connection handles all of these — Coinbase multiplexes ticks for
 # every subscribed product over the same socket, distinguished by the
